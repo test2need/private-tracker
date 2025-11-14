@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Murtaza's Tracker (Firebase)</title>
+
+<!!-- Firebase Compat SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+  body{font-family:'Segoe UI',sans-serif;background:#cce7ff;margin:0;padding:0;color:#333;}
+  .container{width:95%;max-width:1600px;margin:20px auto;background:#fff;border-radius:15px;box-shadow:0 5px 20px rgba(0,0,0,0.15);padding:15px 20px;animation:fadein 0.6s ease;}
+  @keyframes fadein{from{opacity:0;transform:scale(0.95);}to{opacity:1;transform:scale(1);} }
+  h2{text-align:center;color:#007BFF;margin:0;}
+  h3{background:#f0f8ff;padding:6px;border-radius:8px;color:#007BFF;margin-top:20px;}
+  input,select,button,textarea{font-size:14px;padding:4px;border-radius:6px;border:1px solid #ccc;}
+  textarea,input[type="text"]{resize:none;transition:height 0.3s ease;width:100%; box-sizing:border-box;}
+  button{cursor:pointer;background:#007BFF;color:white;border:none;transition:0.3s;}
+  button:hover{background:#005fcc;}
+  table{width:100%;border-collapse:collapse;margin-top:10px;}
+  th,td{border:1px solid #eee;padding:4px;text-align:left;vertical-align:middle;}
+  td:nth-child(2), td:nth-child(5){width:45%;}
+  td input[type="text"]{width:100%;box-sizing:border-box;}
+  .hidden{display:none;}
+  .topbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;position:sticky;top:0;background:#cce7ff;z-index:100;padding:8px 12px;border-bottom:2px solid #007BFF;}
+  .topbar-left{flex:1;text-align:center;}
+  .topbar-right{display:flex;align-items:center;gap:6px;}
+  .section{margin-top:20px;}
+  .action-btns button{margin-right:5px;font-size:12px;}
+  #searchInput{padding:4px;border-radius:6px;border:1px solid #ccc;}
+  #exportImportMsg{text-align:center;color:green;margin-top:10px;font-weight:bold;}
+  #cloudSyncStatus{text-align:center;color:green;margin-top:5px;font-weight:bold;}
+  #pendingTable tbody tr:nth-child(even){background-color:#e6f7e6;}
+  #pendingTable tbody tr:nth-child(odd){background-color:#d4efd4;}
+  #wipTable tbody tr:nth-child(even){background-color:#fff4e6;}
+  #wipTable tbody tr:nth-child(odd){background-color:#ffeacc;}
+  #fupTable tbody tr:nth-child(even){background-color:#cce0ff;}
+  #fupTable tbody tr:nth-child(odd){background-color:#b3d1ff;}
+  #completedTable tbody tr:nth-child(even){background-color:#f2f2f2;}
+  #completedTable tbody tr:nth-child(odd){background-color:#e0e0e0;}
+  #holdTable tbody tr:nth-child(even){background-color:#f9e6ff;}
+  #holdTable tbody tr:nth-child(odd){background-color:#e6ccf2;}
+  #pendingTable thead th{background-color:#ccefcf;color:#007B00;}
+  #wipTable thead th{background-color:#ffe6cc;color:#cc6600;}
+  #fupTable thead th{background-color:#cce0ff;color:#0047b3;}
+  #completedTable thead th{background-color:#e6e6e6;color:#666666;}
+  #holdTable thead th{background-color:#f2d9ff;color:#800080;}
+  #pendingTable tbody tr:hover,#wipTable tbody tr:hover,#fupTable tbody tr:hover,#completedTable tbody tr:hover,#holdTable tbody tr:hover{background-color:#d0ebff;}
+  .due-flash{animation:flashRed 1s infinite;}
+  @keyframes flashRed{0%{background-color:#ffcccc;}50%{background-color:#f9f9f9;}100%{background-color:#ffcccc;}}
+  /* Slightly reduced row height to make rows compact */
+  td, th { padding:6px 8px; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="container">
+  <h2>🔐 Murtaza's Tracker Login</h2>
+  <p><input type="text" id="username" placeholder="Username" style="width:100%"></p>
+  <p><input type="password" id="password" placeholder="Password" style="width:100%"></p>
+  <p id="loginMsg" style="color:red;text-align:center;"></p>
+  <p style="text-align:center;"><button onclick="handleLogin()">Login</button></p>
+  <p style="text-align:center;"><a href="#" onclick="forgotPassword()">Forgot password?</a></p>
+</div>
+
+<!-- MAIN APP -->
+<div id="taskApp" class="container hidden">
+  <div class="topbar">
+    <div class="topbar-left">
+      <h2 style="display:inline;">Murtaza's Tracker</h2>
+      <span id="dateTime" style="font-size:14px;color:#333;margin-left:10px;"></span>
+    </div>
+    <div class="topbar-right">
+      <input type="text" id="searchInput" placeholder="Search tasks..." oninput="searchTasks()">
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- ENTER TASK LINE -->
+  <div class="section">
+    <h3>➕ Enter Task</h3>
+    <table><tbody>
+      <tr>
+        <td><input type="date" id="newDate"></td>
+        <td><input type="text" id="newDesc" placeholder="Description"></td>
+        <td>
+          <select id="newStatus">
+            <option value="Pending" selected>Pending</option>
+            <option value="WIP">WIP</option>
+            <option value="FUP">FUP</option>
+            <option value="Hold">Hold</option>
+          </select>
+        </td>
+        <td><input type="date" id="newTarget" required></td>
+        <td><input type="text" id="newComments" placeholder="Comments"></td>
+        <td><button onclick="addNewTask()">Add Task</button></td>
+      </tr>
+    </tbody></table>
+  </div>
+
+  <!-- TASK SECTIONS -->
+  <div class="section"><h3>🟢 Pending</h3>
+    <table id="pendingTable"><thead><tr>
+      <th>Date & Day</th><th>Description</th><th>Status</th><th>Target Date</th><th>Comments</th><th>Actions</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="section"><h3>🟠 WIP</h3>
+    <table id="wipTable"><thead><tr>
+      <th>Date & Day</th><th>Description</th><th>Status</th><th>Target Date</th><th>Comments</th><th>Actions</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="section"><h3>🔵 FUP</h3>
+    <table id="fupTable"><thead><tr>
+      <th>Date & Day</th><th>Description</th><th>Status</th><th>Target Date</th><th>Comments</th><th>Actions</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="section"><h3>✅ Completed</h3>
+    <table id="completedTable"><thead><tr>
+      <th>Date & Day</th><th>Description</th><th>Status</th><th>Target Date</th><th>Comments</th><th>Actions</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="section"><h3>🟣 Hold</h3>
+    <table id="holdTable"><thead><tr>
+      <th>Date & Day</th><th>Description</th><th>Status</th><th>Target Date</th><th>Comments</th><th>Actions</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="section" style="text-align:center;margin-top:10px;">
+    <button onclick="exportTasks()">💾 Export Tasks</button>
+    <button onclick="clearAll()">🗑 Clear All</button>
+    <input type="file" id="importFile" style="display:none" onchange="importTasks(event)">
+    <button onclick="document.getElementById('importFile').click()">📂 Import Tasks</button>
+    <p id="exportImportMsg"></p>
+    <p id="cloudSyncStatus"></p>
+  </div>
+</div>
+
+<script>
+/* -----------------------------
+   Firebase configuration
+   (You pasted these values)
+   ----------------------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyBeds8rKCf1YytCTzjAJKnte-NPVh-d4E4",
+  authDomain: "mav-tracker-1308.firebaseapp.com",
+  projectId: "mav-tracker-1308",
+  storageBucket: "mav-tracker-1308.firebasestorage.app",
+  messagingSenderId: "236998174228",
+  appId: "1:236998174228:web:6a954cff6ccf2f7dd96901"
+};
+
+/* Initialize Firebase (compat) */
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const tasksCollection = db.collection("tasks");
+
+/* -------- Real-time listener: re-render on any change -------- */
+tasksCollection.onSnapshot((snapshot) => {
+  // clear tables
+  ['pendingTable','wipTable','fupTable','completedTable','holdTable'].forEach(id=>{
+    document.querySelector(`#${id} tbody`).innerHTML = '';
+  });
+
+  // add each doc to appropriate table
+  snapshot.forEach(doc => {
+    const task = { id: doc.id, ...doc.data() };
+    addTaskToTable(task);
+  });
+
+  flashDueTasks();
+  document.getElementById("cloudSyncStatus").textContent = "☁️ Synced with Cloud";
+  // clear message after 3s
+  setTimeout(()=>{ document.getElementById("cloudSyncStatus").textContent = ""; }, 3000);
+});
+
+/* ------------- Login (local cred) --------------- */
+document.getElementById("password").addEventListener("keypress",function(e){if(e.key==="Enter") handleLogin();});
+function handleLogin(){
+  const user=document.getElementById('username').value.trim(), pass=document.getElementById('password').value.trim();
+  const savedUser=localStorage.getItem('loginUser'), savedPass=localStorage.getItem('loginPass');
+  if(!user||!pass){document.getElementById('loginMsg').textContent='Enter username and password.'; return;}
+  if(!savedUser&&!savedPass){localStorage.setItem('loginUser',user); localStorage.setItem('loginPass',pass); document.getElementById('loginMsg').style.color='green'; document.getElementById('loginMsg').textContent='Login created!'; showApp(); return;}
+  if(user===savedUser&&pass===savedPass){showApp();} else{document.getElementById('loginMsg').textContent='Invalid username or password.';}
+}
+function forgotPassword(){
+  const savedUser = localStorage.getItem('loginUser');
+  const savedPass = localStorage.getItem('loginPass');
+  if(!savedUser||!savedPass){alert('No login exists yet. Please create your login.'); return;}
+  const enteredUser = prompt('Enter your username to reset password:');
+  if(enteredUser !== savedUser){alert('Username does not match!'); return;}
+  const newPass = prompt('Enter new password:');
+  if(!newPass){alert('Password cannot be empty!'); return;}
+  localStorage.setItem('loginPass', newPass);
+  alert('✅ Password reset successful!');
+}
+function showApp(){loginScreen.classList.add('hidden'); taskApp.classList.remove('hidden'); /* tasks auto-loaded via onSnapshot */ }
+function logout(){taskApp.classList.add('hidden'); loginScreen.classList.remove('hidden'); password.value='';}
+
+/* ------------- Utilities --------------- */
+function getTodayStr(){const today=new Date(); return today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');}
+
+/* ------------- Add Task --------------- */
+function addNewTask(){
+  const date=document.getElementById('newDate').value || getTodayStr();
+  const desc=document.getElementById('newDesc').value.trim();
+  const status=document.getElementById('newStatus').value || 'Pending';
+  const target=document.getElementById('newTarget').value;
+  const comments=document.getElementById('newComments').value;
+  if(!desc){alert('Description is mandatory'); return;}
+  if(!target){alert('Target Date is mandatory'); return;}
+  const task={date,description:desc,status,target,comments};
+  tasksCollection.add(task)
+    .then(()=> {
+      // clear inputs - snapshot will re-render table
+      document.getElementById('newDesc').value=''; document.getElementById('newTarget').value=''; document.getElementById('newComments').value=''; document.getElementById('newDate').value=getTodayStr(); document.getElementById('newStatus').value='Pending';
+      document.getElementById('exportImportMsg').textContent = '✅ Task added & synced';
+      setTimeout(()=>document.getElementById('exportImportMsg').textContent = '', 2000);
+    })
+    .catch(err => alert('Error adding task: ' + err));
+}
+
+/* ------------- Render Task Row --------------- */
+function addTaskToTable(task){
+  const tableMap={'Pending':'pendingTable','WIP':'wipTable','FUP':'fupTable','Completed':'completedTable','Hold':'holdTable'};
+  const tableBody=document.querySelector(`#${tableMap[task.status]} tbody`);
+  if(!tableBody) return;
+  const row = tableBody.insertRow();
+  row.dataset.id = task.id;
+  row.innerHTML = `
+    <td><input type="date" value="${task.date || ''}"></td>
+    <td><input type="text" value="${escapeHtml(task.description || '')}"></td>
+    <td>
+      <select>
+        <option ${task.status==='Pending'?'selected':''}>Pending</option>
+        <option ${task.status==='WIP'?'selected':''}>WIP</option>
+        <option ${task.status==='FUP'?'selected':''}>FUP</option>
+        <option ${task.status==='Hold'?'selected':''}>Hold</option>
+        <option ${task.status==='Completed'?'selected':''}>Completed</option>
+      </select>
+    </td>
+    <td><input type="date" value="${task.target || ''}" required></td>
+    <td><input type="text" value="${escapeHtml(task.comments || '')}"></td>
+    <td class="action-btns"><button onclick="deleteTask(this)">❌</button></td>
+  `;
+
+  // wire changes to updateTask
+  row.querySelectorAll('input,select').forEach(el => {
+    el.addEventListener('change', ()=> updateTask(row));
+  });
+}
+
+/* Escape value for attribute / display safety */
+function escapeHtml(s){
+  return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+}
+
+/* ------------- Update Task --------------- */
+function updateTask(row){
+  const id = row.dataset.id;
+  if(!id) return;
+  const inputs = row.querySelectorAll('input,select');
+  const payload = {
+    date: inputs[0].value,
+    description: inputs[1].value,
+    status: inputs[2].value,
+    target: inputs[3].value,
+    comments: inputs[4].value
+  };
+  tasksCollection.doc(id).update(payload).catch(err=>console.error('Update failed', err));
+}
+
+/* ------------- Delete Task --------------- */
+function deleteTask(btn){
+  if(!confirm('Delete this task?')) return;
+  const row = btn.closest('tr');
+  const id = row.dataset.id;
+  if(!id) return;
+  tasksCollection.doc(id).delete().catch(err => alert('Delete failed: ' + err));
+}
+
+/* ------------- Clear All --------------- */
+function clearAll(){
+  const savedPass = localStorage.getItem('loginPass');
+  if(!confirm('Are you sure? Click OK to confirm.')) return;
+  const enteredPass = prompt('Enter your password to confirm clearing all tasks:');
+  if(enteredPass !== savedPass){ alert('❌ Incorrect password. Aborting!'); return;}
+  if(!confirm('Double confirm: This will erase all tasks!')) return;
+
+  // delete all docs in collection (simple approach)
+  tasksCollection.get().then(snapshot=>{
+    const batch = db.batch();
+    snapshot.forEach(doc => batch.delete(doc.ref));
+    return batch.commit();
+  }).then(()=>{
+    ['pendingTable','wipTable','fupTable','completedTable','holdTable'].forEach(id=>document.querySelector(`#${id} tbody`).innerHTML='');
+    alert('✅ All tasks cleared!');
+  }).catch(err=>alert('Clear failed: ' + err));
+}
+
+/* ------------- Search --------------- */
+function searchTasks(){
+  const term = document.getElementById('searchInput').value.toLowerCase();
+  ['pendingTable','wipTable','fupTable','completedTable','holdTable'].forEach(id=>{
+    document.querySelectorAll(`#${id} tbody tr`).forEach(row=>{
+      const text = Array.from(row.querySelectorAll('input,select')).map(e=>String(e.value).toLowerCase()).join(' ');
+      row.style.display = text.includes(term) ? '' : 'none';
+    });
+  });
+}
+
+/* ------------- Export / Import --------------- */
+function exportTasks(){
+  tasksCollection.get().then(snapshot=>{
+    const all = [];
+    snapshot.forEach(doc => all.push({...doc.data(), id: doc.id}));
+    const blob = new Blob([JSON.stringify(all,null,2)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `tasks_export_${new Date().toISOString().split('T')[0]}.json`; a.click();
+    document.getElementById('exportImportMsg').textContent = '✅ Export ready';
+    setTimeout(()=>document.getElementById('exportImportMsg').textContent='', 2500);
+  });
+}
+
+function importTasks(event){
+  const file = event.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      const tasks = JSON.parse(e.target.result);
+      // add each task into Firestore
+      tasks.forEach(t => {
+        const { id, ...data } = t;
+        tasksCollection.add(data).catch(err => console.error('Import single failed', err));
+      });
+      document.getElementById('exportImportMsg').textContent = '✅ Import started';
+      setTimeout(()=>document.getElementById('exportImportMsg').textContent='', 2000);
+    } catch(err){
+      alert('Invalid JSON file');
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ------------- Flash due tasks (today or older) --------------- */
+function flashDueTasks(){
+  const todayStr = new Date().toISOString().split('T')[0];
+  ['pendingTable','wipTable','fupTable'].forEach(id=>{
+    document.querySelectorAll(`#${id} tbody tr`).forEach(row=>{
+      const targetInput = row.cells[3]?.querySelector('input');
+      if(!targetInput){ row.classList.remove('due-flash'); return; }
+      row.classList.toggle('due-flash', targetInput.value <= todayStr);
+    });
+  });
+}
+setInterval(flashDueTasks, 15000);
+
+/* ------------- Date & Time display --------------- */
+function updateDateTime(){
+  const now=new Date();
+  const options={ weekday:'short', year:'numeric', month:'short', day:'numeric' };
+  const dateStr=now.toLocaleDateString(undefined,options);
+  const timeStr=now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const el = document.getElementById('dateTime');
+  if(el) el.textContent=`(${dateStr} ${timeStr})`;
+}
+setInterval(updateDateTime,1000);
+updateDateTime();
+
+/* ------------- Init --------------- */
+window.onload = function(){
+  document.getElementById('newDate').value = new Date().toISOString().split('T')[0];
+  // small visual cloud sync indicator toggler (optional)
+  setInterval(()=> {
+    const el = document.getElementById('cloudSyncStatus');
+    if(el && el.textContent) el.style.opacity = el.style.opacity === '0.5' ? '1' : '0.5';
+  }, 1500);
+};
+</script>
+</body>
+</html>
+
